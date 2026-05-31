@@ -33,16 +33,18 @@ class BackupManager:
         
         # Scan backup storage directory
         if self.backup_storage_path.exists():
-            for backup_file in self.backup_storage_path.glob('*.tar*'):
-                backup_info = {
-                    'id': backup_file.stem,
-                    'path': str(backup_file),
-                    'size': backup_file.stat().st_size,
-                    'created': datetime.fromtimestamp(backup_file.stat().st_ctime),
-                    'type': 'local',
-                    'format': backup_file.suffix
-                }
-                backups.append(backup_info)
+            for backup_file in self.backup_storage_path.glob('*'):
+                if backup_file.is_file():
+                    backup_info = {
+                        'id': backup_file.stem,
+                        'path': str(backup_file),
+                        'size': backup_file.stat().st_size,
+                        'created': datetime.fromtimestamp(backup_file.stat().st_ctime),
+                        'modified': datetime.fromtimestamp(backup_file.stat().st_mtime),
+                        'type': 'local',
+                        'format': backup_file.suffix
+                    }
+                    backups.append(backup_info)
         
         logger.info(f"Found {len(backups)} local backups")
         return backups
@@ -53,9 +55,15 @@ class BackupManager:
         Returns:
             List of backup information from Google Drive
         """
-        # TODO: Implement Google Drive integration
-        logger.warning("Google Drive integration not yet implemented")
-        return []
+        try:
+            from whatsapp_backup_manager.backup_manager.cloud_manager import CloudManager
+            cloud_manager = CloudManager()
+            backups = cloud_manager.list_backups()
+            logger.info(f"Found {len(backups)} cloud backups")
+            return backups
+        except Exception as e:
+            logger.error(f"Error listing cloud backups: {e}")
+            return []
 
     def import_backup(self, backup_path: str, backup_id: Optional[str] = None) -> bool:
         """Import a WhatsApp backup.
@@ -68,6 +76,7 @@ class BackupManager:
             True if import successful, False otherwise
         """
         try:
+            import shutil
             source = Path(backup_path)
             if not source.exists():
                 logger.error(f"Backup file not found: {backup_path}")
@@ -76,8 +85,8 @@ class BackupManager:
             # Copy to storage
             destination = self.backup_storage_path / source.name
             logger.info(f"Importing backup from {source} to {destination}")
-            
-            # TODO: Implement backup copy/extraction logic
+            shutil.copy2(source, destination)
+            logger.info(f"Successfully imported backup: {destination}")
             return True
         except Exception as e:
             logger.error(f"Error importing backup: {e}")
